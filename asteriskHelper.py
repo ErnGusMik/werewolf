@@ -10,6 +10,7 @@ ARI_PASSWORD = "asterisk"
 APP_NAME = "hello" # Must match the Stasis() app name in extensions.conf
 
 clients = []
+app = None
 
 class Connection:
     def __init__(self, channel):
@@ -50,6 +51,7 @@ async def event_listener(client):
         
 async def main():
     """Runs the main event loop"""
+    global client
 
     async with asyncari.connect(
         base_url=ARI_URL,
@@ -65,12 +67,43 @@ async def main():
             print("Use this event for anything central, that needs more than one channel!")
 
 
-def playAudio(audioName):
+async def playAudio(audioName, channelId):
     print(f"Playing audio: {audioName} (not implemented)")
+    await client.channels.play(channel=channelId, media=audioName)
 
 """players can speak together privatly to find a good method"""
-def connectPlayersPrivatly(listOfPlayers):
+async def connectPlayersPrivatly(listOfPlayers, nameOfBridge):
     print(f"Trying to connect players ${listOfPlayers}, but implement the function first")
+    bridge = await app.bridges.create(
+        type="mixing",
+        name=nameOfBridge
+    )
+    for player in listOfPlayers:
+        await app.bridges.addChannel(
+            bridgeId=bridge.id,
+            channelId=player.number
+        )
+    return bridge.id
+
+"""a player is removed from the room they were in"""
+async def removePlayerFromRoom(player, bridgeId):
+    try:
+        print("Removing channel!")
+        await app.bridges.removeChannel(
+            bridgeId=bridgeId,
+            channelId=player.number
+        )
+    except Exception:
+        print("Channel already removed!")
+        pass
+
+async def routePlayerToDifferentRoom(player, oldBridgeId, newBridgeId):
+    await removePlayerFromRoom(player, oldBridgeId);
+    await app.bridges.addChannel(
+        bridgeId=newBridgeId,
+        channelId=player.number
+    )
+
 
 """all other players can listen but not talk """
 def givePlayersRightToSpeak(listOfPlayers):
@@ -80,7 +113,6 @@ def givePlayersRightToSpeak(listOfPlayers):
 """Returns a number that was pushed on the panel"""
 def getUserInput(playerNumber):
     print("implement the getUserInput")
-    #return -1
     return input(f"Player {playerNumber}, enter your input: ")
 
 def kickPlayer(playerNumber):
